@@ -2,17 +2,39 @@ import { Button } from 'components/button';
 import { PasswordInput } from 'components/inputs/password';
 import { TextInput } from 'components/inputs/text';
 import React from 'react';
+import { useForm } from 'react-hook-form';
 import { NavLink } from 'react-router';
 import styled from 'styled-components';
 
+import { RequestBodyType, useRegister } from '../api';
+
 export const Signup: React.FC = () => {
+  const { setValue, watch } = useForm<RequestBodyType>();
+  const data = watch();
+  const { mutate } = useRegister();
+  const onSubmit = () => {
+    mutate(data);
+  };
+  const isDisabled = !data?.login || !data?.password;
+
   return (
     <Content className="shadow-lg">
       <Title>Регистрация</Title>
-      <TextInput label="Логин" />
-      <PasswordInput className="mt-3" label="Пароль" />
+      <TextInput
+        label="Логин"
+        value={data?.login}
+        onChange={(e) => setValue('login', e.target.value)}
+      />
+      <PasswordInput
+        className="mt-3"
+        label="Пароль"
+        value={data?.password}
+        onChange={(e) => setValue('password', e.target.value)}
+      />
       <Wrapper>
-        <Button fullWidth>Зарегистрироваться</Button>
+        <Button disabled={isDisabled} fullWidth onClick={onSubmit}>
+          Зарегистрироваться
+        </Button>
       </Wrapper>
       <WrapperLink>
         <Link to="/auth/signin">Авторизация</Link>

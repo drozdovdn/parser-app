@@ -8,11 +8,11 @@ export interface IUser {
   password: string;
 }
 
-interface UserModel extends Model<IUser> {
+interface IUserModel extends Model<IUser> {
   findUserByCredentials: (login: string, password: string) => Promise<Document<unknown, any, IUser>>;
 }
 
-const userSchema = new Schema<IUser, UserModel>({
+const userSchema = new Schema<IUser, IUserModel>({
   login: {
     type: String,
     unique: true,
@@ -45,4 +45,4 @@ userSchema.static('findUserByCredentials', function findUserByCredentials(login:
     });
 });
 
-export const UserModel = model<IUser, UserModel>('user', userSchema);
+export const UserModel = model<IUser, IUserModel>('user', userSchema);

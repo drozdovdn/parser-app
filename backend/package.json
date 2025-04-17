@@ -29,6 +29,7 @@
   "dependencies": {
     "bcryptjs": "^3.0.2",
     "celebrate": "^15.0.3",
+    "cookie": "^1.0.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
@@ -37,6 +38,8 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.13.2",
+    "puppeteer": "^24.6.1",
+    "socket.io": "^4.8.1",
     "validator": "^13.15.0",
     "winston": "^3.17.0"
   }

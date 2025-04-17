@@ -2,12 +2,14 @@ import bcrypt from 'bcryptjs';
 import { NextFunction, Request, Response } from 'express';
 
 import NotFoundError from '../errors/no-found-error';
-import UserModel from '../models/user';
+import { UserModel } from '../models/user';
 import { RequestPayload } from '../types';
 
 export const getUsers = (req: Request, res: Response, next: NextFunction) =>
   UserModel.find({})
-    .then((users) => res.send(users))
+    .then((users) => {
+      res.send(users);
+    })
     .catch(next);
 
 export const getUserId = (req: Request, res: Response, next: NextFunction) =>
@@ -22,7 +24,6 @@ export const getUserId = (req: Request, res: Response, next: NextFunction) =>
 
 export const getCurrentUser = (req: RequestPayload, res: Response, next: NextFunction) =>
   UserModel.findById(req?.user?._id)
-
     .then((user) => {
       if (!user) {
         throw new NotFoundError('Запрашиваемый пользователь не найден');
