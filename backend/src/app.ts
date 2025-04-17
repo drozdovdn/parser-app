@@ -22,28 +22,28 @@ mongoose.connect(DB_ADDRESS).then(() => console.log('Connected DB!'));
 
 const app = express();
 const server = http.createServer(app);
-// setupSocket(server);
-
-const io = new Server(server, {
-  path: '/socket.io', // Указываем путь
-  cors: {
-    origin: 'http://localhost:3000',
-    methods: ['GET', 'POST'],
-  },
-});
-
-io.on('connection', (socket) => {
-  console.log('🟢 Socket connected:', socket.id);
-
-  socket.on('message', (data) => {
-    console.log('📩 Received message:', data);
-    io.emit('message', `echo: ${data}`);
-  });
-
-  socket.on('disconnect', () => {
-    console.log('🔴 Socket disconnected:', socket.id);
-  });
-});
+setupSocket(server);
+//
+// const io = new Server(server, {
+//   path: '/socket.io', // Указываем путь
+//   cors: {
+//     origin: 'http://localhost:3000',
+//     methods: ['GET', 'POST'],
+//   },
+// });
+//
+// io.on('connection', (socket) => {
+//   console.log('🟢 Socket connected:', socket.id);
+//
+//   socket.on('message', (data) => {
+//     console.log('📩 Received message:', data);
+//     io.emit('message', `echo: ${data}`);
+//   });
+//
+//   socket.on('disconnect', () => {
+//     console.log('🔴 Socket disconnected:', socket.id);
+//   });
+// });
 
 app.use(express.json()); // для собирания JSON-формата
 app.use(express.urlencoded({ extended: true })); // для приёма веб-страниц внутри POST-запроса

@@ -20,22 +20,23 @@ export const Parser: React.FC = () => {
 
   const data = watch();
 
-  const [status, setStatus] = useState<string[]>([]);
-  const [result, setResult] = useState<any[]>([]);
+  const [status, setStatus] = useState('');
+  const [books, setBooks] = useState<any[]>([]);
 
   useEffect(() => {
-    // socket.on('status', (msg) => {
-    //   setStatus((prev) => [...prev, msg]);
-    // });
-    //
-    // socket.on('result', (books) => {
-    //   setResult(books);
-    // });
-    //
-    // return () => {
-    //   socket.off('status');
-    //   socket.off('result');
-    // };
+    if (!socket.connected) {
+      socket.connect(); // Подключаем сокет, если он еще не подключен
+    }
+
+    // Слушаем обновления статуса
+    socket.on('statusUpdate', (data) => {
+      setStatus(data.message);
+    });
+
+    // Очистка при размонтировании
+    return () => {
+      socket.off('statusUpdate');
+    };
   }, []);
 
   const onSubmit = () => {
@@ -44,7 +45,21 @@ export const Parser: React.FC = () => {
     //   url: data.url,
     //   pages: data.pages,
     // });
-    socket.emit('message', data.pages);
+    // socket.emit('message', data.pages);
+
+    // Отправляем запрос на сервер
+    socket.emit('startParsing', { baseUrl: data.url, pages: data.pages });
+
+    // Получаем результат парсинга
+    socket.on('parsingResult', (data) => {
+      console.log('parsingResult', data);
+      if (data.success) {
+        setBooks(data.books);
+        setStatus(data.message);
+      } else {
+        setStatus('❌ Ошибка при парсинге');
+      }
+    });
   };
 
   return (
@@ -65,18 +80,14 @@ export const Parser: React.FC = () => {
       />
       <Button onClick={onSubmit}>Запустить парсинг</Button>
       <Body>
-        <div>
-          <h3>Статус:</h3>
-          <ul>
-            {status.map((s, i) => (
-              <li key={i}>{s}</li>
-            ))}
-          </ul>
-        </div>
-        <div>
-          <h3>Результат:</h3>
-          <pre>{JSON.stringify(result, null, 2)}</pre>
-        </div>
+        <p>{status}</p>
+        <ul>
+          {books.map((book, index) => (
+            <li key={index}>
+              <strong>{book.title}</strong> by {book.author} - {book.rating} stars
+            </li>
+          ))}
+        </ul>
       </Body>
     </Content>
   );
