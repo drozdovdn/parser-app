@@ -1,4 +1,5 @@
 import { Button } from 'components/button';
+import { NumberInput } from 'components/inputs/number';
 import { TextInput } from 'components/inputs/text';
 import { socket } from 'core/socket';
 import React, { useEffect, useState } from 'react';
@@ -7,20 +8,25 @@ import styled from 'styled-components';
 
 type BodyParserProps = {
   url: string;
-  pages: number;
+  pages: string | number;
+  parsingStatus: boolean;
+  currentPage: number;
 };
 
 export const Parser: React.FC = () => {
-  const { watch, setValue } = useForm<BodyParserProps>({
+  const { watch, setValue, reset } = useForm<BodyParserProps>({
     defaultValues: {
       url: 'https://www.litres.ru/new/',
-      pages: 5,
+      pages: 1,
+      currentPage: 1,
+      parsingStatus: false,
     },
   });
 
   const data = watch();
 
   const [status, setStatus] = useState('');
+  const [parsingStatus, setParsingStatus] = useState<Record<string, any>>();
   const [books, setBooks] = useState<any[]>([]);
 
   useEffect(() => {
@@ -33,9 +39,32 @@ export const Parser: React.FC = () => {
       setStatus(data.message);
     });
 
+    // Слушаем parsingState
+    socket.on('parsingState', (data) => {
+      if (data?.data) {
+        reset(data?.data);
+      }
+
+      console.log('parsingState', data);
+    });
+
+    // Получаем результат парсинга
+    socket.on('parsingResult', (data) => {
+      console.log('parsingResult', data);
+      if (data?.success) {
+        data?.books && setBooks(data.books);
+        setStatus(data.message);
+      } else {
+        setStatus('❌ Ошибка при парсинге');
+      }
+    });
+
     // Очистка при размонтировании
     return () => {
       socket.off('statusUpdate');
+      socket.off('parsingResult');
+      socket.off('parsingState');
+      socket.disconnect();
     };
   }, []);
 
@@ -47,21 +76,20 @@ export const Parser: React.FC = () => {
     // });
     // socket.emit('message', data.pages);
 
+    setValue('parsingStatus', true);
     // Отправляем запрос на сервер
-    socket.emit('startParsing', { baseUrl: data.url, pages: data.pages });
-
-    // Получаем результат парсинга
-    socket.on('parsingResult', (data) => {
-      console.log('parsingResult', data);
-      if (data.success) {
-        setBooks(data.books);
-        setStatus(data.message);
-      } else {
-        setStatus('❌ Ошибка при парсинге');
-      }
+    socket.emit('startParsing', {
+      ...data,
+      currentPage: +data?.pages > 1 ? 1 : 0,
+      parsingStatus: true,
     });
   };
 
+  const onStopParsing = () => {
+    socket.emit('startParsing', { ...data, parsingStatus: false });
+  };
+
+  const nameBtn = !!data?.parsingStatus ? 'Идет парсинг...' : 'Запустить парсинг';
   return (
     <Content>
       <Header>PARSER LITREST</Header>
@@ -72,13 +100,18 @@ export const Parser: React.FC = () => {
         value={data.url}
         onChange={(e) => setValue('url', e.target.value)}
       />
-      <TextInput
+      <NumberInput
         label="Колличество стариц"
         className="mb-3"
         value={data.pages}
-        onChange={(e) => setValue('pages', +e.target.value)}
+        onChange={(v) => setValue('pages', v)}
       />
-      <Button onClick={onSubmit}>Запустить парсинг</Button>
+      <WrapperButton>
+        <Button disabled={!!data?.parsingStatus} onClick={onSubmit}>
+          {nameBtn}
+        </Button>
+        {data?.parsingStatus && <Button onClick={onStopParsing}>Остановить парсинг</Button>}
+      </WrapperButton>
       <Body>
         <p>{status}</p>
         <ul>
@@ -93,6 +126,11 @@ export const Parser: React.FC = () => {
   );
 };
 
+const WrapperButton = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+`;
 const Body = styled.div`
   margin-top: 50px;
 `;
