@@ -27,6 +27,7 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
+    "deploy": "npm run build && scp -Cr ./build/* root@185.229.66.139:/home/parser-app/frontend",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",

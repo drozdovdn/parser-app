@@ -34,7 +34,7 @@ app.use(cors());
 app.use(helmet());
 
 app.post(
-  '/signin',
+  '/api/signin',
   celebrate({
     body: Joi.object().keys({
       login: Joi.string().required(),
@@ -44,7 +44,7 @@ app.post(
   loginUser,
 );
 app.post(
-  '/signup',
+  '/api/signup',
   celebrate({
     body: Joi.object().keys({
       login: Joi.string().required(),
@@ -55,8 +55,8 @@ app.post(
 );
 
 app.use(auth);
-app.use('/users', userRouter);
-app.use('/book-collections', bookCollectionRouter);
+app.use('/api/users', userRouter);
+app.use('/api/book-collections', bookCollectionRouter);
 
 // --- ERRORS ---
 app.use(errors());
