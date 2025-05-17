@@ -4,7 +4,9 @@ import { Signin } from 'pages/auth/signin';
 import React from 'react';
 import { Navigate, Outlet, Route, Routes } from 'react-router';
 
+import { Archive } from '../pages/archive';
 import { Signup } from '../pages/auth/signup';
+import { BookCollections } from '../pages/book-collections';
 import { Parser } from '../pages/parser';
 
 const AuthRedirectGuard = () => {
@@ -30,6 +32,8 @@ export const Routing: React.FC = () => {
 
       <Route path="parser" element={<ParserLayout />}>
         <Route index element={<Parser />} />
+        <Route path="archive" element={<Archive />} />
+        <Route path="archive/:id" element={<BookCollections />} />
       </Route>
     </Routes>
   );

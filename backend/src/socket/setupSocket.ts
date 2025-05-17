@@ -2,28 +2,12 @@ import { Server as HTTPServer } from 'http';
 import puppeteer from 'puppeteer';
 import { Server, Socket } from 'socket.io';
 
-interface ParseParams {
-  url: string;
-  pages: number;
-  currentPage: number;
-  parsingStatus: boolean;
-}
+import { SOCKET_ENUMS } from '../config';
+import { Book, ParseParams } from '../types';
+import { saveBooksToDatabase } from './controllers';
 
-interface Book {
-  link?: string;
-  title?: string;
-  author?: string;
-  rating?: string;
-  countRating?: string;
-  price?: string;
-  releaseDate?: string;
-  updateDate?: string;
-  startDate?: string;
-  reviewsCount?: string;
-}
-
-const parsedBooksMap = new Map<string, Book[]>();
-const parsingState = new Map<string, ParseParams>();
+const parsedBooksMap = new Map<string, Book[]>(); //тут спаршеные книги
+const parsingState = new Map<string, ParseParams>(); //тут состояние комнаты клиента
 
 export function setupSocket(server: HTTPServer): void {
   const io = new Server(server, {
@@ -35,8 +19,6 @@ export function setupSocket(server: HTTPServer): void {
   });
 
   io.on('connection', (socket: Socket) => {
-    console.log('✅ Клиент подключен:', socket.id);
-
     const userId = socket.handshake.auth.userId;
     if (!userId) {
       console.log('Ошибка: не передан userId, отключаем клиента');
@@ -50,69 +32,95 @@ export function setupSocket(server: HTTPServer): void {
     const dataPage = parsingState.get(userId);
 
     console.log(`✅ Клиент ${socket.id} подключен к комнате ${userRoom}`);
-    console.log({ parsedBooksMap });
 
-    io.to(userRoom).emit('parsingResult', {
-      success: true,
+    io.to(userRoom).emit(SOCKET_ENUMS.STATUS_UPDATE, {
       message: `Вы подключены к своей комнате!`,
     });
 
-    io.to(userRoom).emit('parsingState', {
+    io.to(userRoom).emit(SOCKET_ENUMS.PARSING_STATE, {
       success: true,
       data: parsingState.get(userId) || null,
       message: `Данные процесса парсинга`,
     });
 
-    io.to(userRoom).emit('statusUpdate', {
-      message: `🔄 Парсим страницу ${dataPage?.currentPage}... из ${dataPage?.pages}`,
-    });
+    if (dataPage?.parsingStatus) {
+      io.to(userRoom).emit(SOCKET_ENUMS.STATUS_UPDATE, {
+        message: `🔄 Парсим страницу ${dataPage?.currentPage} из ${dataPage?.pages}`,
+      });
+    }
 
     if (books?.length) {
-      io.to(userRoom).emit('parsingResult', {
+      io.to(userRoom).emit(SOCKET_ENUMS.PARSING_RESULT, {
         success: true,
         books: books,
         message: `Последние спаршеные данные!`,
       });
     }
 
-    socket.on('startParsing', async (data: ParseParams) => {
+    const allBooks: Book[] = [];
+
+    socket.on(SOCKET_ENUMS.PARSING_START, async (data: ParseParams) => {
       console.log('startParsing DATA', data);
       parsingState.set(userId, data);
 
       const { url, pages } = data;
-      const allBooks: Book[] = [];
+
       const browser = await puppeteer.launch({ headless: 'new' as any });
       const page = await browser.newPage();
-
-      io.to(userRoom).emit('statusUpdate', { message: 'Начинаю парсить страницы...' });
+      if (parsingState.get(userId)?.parsingStatus) {
+        io.to(userRoom).emit(SOCKET_ENUMS.STATUS_UPDATE, { message: 'Начинаю парсить страницы...' });
+      } else {
+        io.to(userRoom).emit(SOCKET_ENUMS.STATUS_UPDATE, {
+          message: 'Парсинг остановлен, ниже отобразятся данны которые удалось спарсить',
+        });
+      }
 
       for (let pageNum = 0; pageNum < pages; pageNum++) {
-        if (!parsingState.get(userId)?.parsingStatus) break;
-        parsingState.set(userId, { ...data, currentPage: pageNum + 1 });
+        if (!parsingState.get(userId)?.parsingStatus) break; //выходим из парсинга
 
-        const pageUrl = `${url}${pageNum > 1 ? `?page=${pageNum}` : ''}`;
-        io.to(userRoom).emit('statusUpdate', { message: `🔄 Парсим страницу ${pageNum + 1}... из ${data?.pages}` });
-        await page.goto(pageUrl, { waitUntil: 'networkidle2' });
+        parsingState.set(userId, { ...data, currentPage: pageNum + 1 });
+        const paramOperator = url.includes('?') ? '&' : '?';
+        const pageUrl = `${url}${pageNum > 1 ? `${paramOperator}page=${pageNum}` : ''}`;
+
+        io.to(userRoom).emit(SOCKET_ENUMS.STATUS_UPDATE, {
+          message: `🔄 Парсим страницу ${pageNum + 1} из ${data?.pages}`,
+        });
+
+        // await page.goto(pageUrl, { waitUntil: 'networkidle2' });
+        console.log({ pageUrl });
+        try {
+          await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+        } catch (error) {
+          console.error('❌ Ошибка загрузки страницы:', pageUrl, error);
+          await page.close();
+          continue; // пропускаем эту книгу
+        }
         await page.waitForSelector('[data-testid="art__title"]');
 
         const bookLinks = await page.$$eval('[data-testid="art__title"]', (anchors) =>
           anchors.map((a) => (a as HTMLAnchorElement).href),
         );
 
-        console.log({ bookLinks });
         for (const bookUrl of bookLinks) {
-          if (!parsingState.get(userId)?.parsingStatus) break;
+          if (!parsingState.get(userId)?.parsingStatus) break; //выходим из парсинга
 
           const bookPage = await browser.newPage();
-          await bookPage.goto(bookUrl, { waitUntil: 'networkidle2' });
+          console.log('=>', { bookUrl });
+          try {
+            await bookPage.goto(bookUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+          } catch (error) {
+            console.error('❌ Ошибка загрузки страницы:', bookUrl, error);
+            await bookPage.close();
+            continue; // пропускаем эту книгу
+          }
+
+          // await bookPage.goto(bookUrl, { waitUntil: 'networkidle2' });
           await bookPage.waitForSelector('[data-testid="book-characteristics__wrapper"]');
-          console.log('1 bookUrl', bookUrl);
-          const link = bookUrl;
+
           const bookData: Book = await bookPage.evaluate((bookUrl) => {
             const getText = (selector: string) => document.querySelector(selector)?.textContent?.trim() || '';
-
             const link = bookUrl;
-            const title = getText('[data-testid="art__title"]');
+            const title = getText('h1[itemprop="name"]');
             const author = getText('[data-testid="art__authorName"]');
             const rating = document.querySelector('[itemprop="ratingValue"]')?.getAttribute('content') || '';
             const countRating = document.querySelector('[itemprop="ratingCount"]')?.getAttribute('content') || '';
@@ -159,18 +167,40 @@ export function setupSocket(server: HTTPServer): void {
       if (state) {
         parsingState.set(userId, { ...state, parsingStatus: false });
 
-        io.to(userRoom).emit('parsingState', {
+        io.to(userRoom).emit(SOCKET_ENUMS.PARSING_STATE, {
           success: true,
           data: parsingState.get(userId) || null,
           message: `Данные процесса парсинга`,
         });
       }
-
-      io.to(userRoom).emit('parsingResult', {
+      console.log({ allBooks });
+      io.to(userRoom).emit(SOCKET_ENUMS.PARSING_RESULT, {
         success: true,
         books: allBooks,
         message: `✅ Сохранено ${allBooks.length} книг в памяти (не в базе)`,
       });
+    });
+    socket.on(SOCKET_ENUMS.STATUS_SAVE_BOOKS, async ({ title }: { title: string }) => {
+      const books = parsedBooksMap.get(userId);
+      console.log('save', books);
+      if (!books || books.length === 0) {
+        io.to(userRoom).emit(SOCKET_ENUMS.STATUS_UPDATE, {
+          message: '⚠️ Нет данных для сохранения. Сначала выполните парсинг.',
+        });
+        return;
+      }
+
+      try {
+        await saveBooksToDatabase(userId, title, books);
+        io.to(userRoom).emit(SOCKET_ENUMS.STATUS_UPDATE, {
+          message: `✅ Книги успешно сохранены в базу данных.`,
+        });
+      } catch (error) {
+        console.error('Ошибка при сохранении книг:', error);
+        io.to(userRoom).emit(SOCKET_ENUMS.STATUS_UPDATE, {
+          message: '❌ Ошибка при сохранении книг в базу данных.',
+        });
+      }
     });
   });
 }

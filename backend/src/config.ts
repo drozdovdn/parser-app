@@ -1,1 +1,10 @@
 export const { PORT = 4000, JWT_SECRET = 'JWT_SECRET', DB_ADDRESS = 'mongodb://localhost:27017/mydb' } = process.env;
+
+export const SOCKET_ENUMS = {
+  PARSING_START: 'PARSING_START',
+  PARSING_STATE: 'PARSING_STATE',
+  PARSING_RESULT: 'PARSING_RESULT',
+
+  STATUS_SAVE_BOOKS: 'STATUS_SAVE_BOOKS',
+  STATUS_UPDATE: 'STATUS_UPDATE',
+} as const;
