@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "tsc",
+    "deploy": "npm run start && scp -Cr ./dist/* root@185.229.66.139:/home/parser-app/backend",
     "dev": "ts-node-dev src/app.ts",
     "prettier": "npx prettier . --write",
     "test": "echo \"Error: no test specified\" && exit 1"
