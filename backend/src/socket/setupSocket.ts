@@ -65,7 +65,10 @@ export function setupSocket(server: HTTPServer): void {
 
       const { url, pages } = data;
 
-      const browser = await puppeteer.launch({ headless: 'new' as any });
+      const browser = await puppeteer.launch({
+        headless: 'new' as any,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'], //не безопасно
+      });
       const page = await browser.newPage();
       if (parsingState.get(userId)?.parsingStatus) {
         io.to(userRoom).emit(SOCKET_ENUMS.STATUS_UPDATE, { message: 'Начинаю парсить страницы...' });
